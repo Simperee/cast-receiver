@@ -19,15 +19,29 @@
       display: none;
     }
 
-    /* 1. The heavily blurred, dark background layer */
+    /* 1. The highly optimized blurred background layer */
     #bg-layer {
       position: absolute;
-      top: -10%; left: -10%; width: 120%; height: 120%;
+      top: 0; 
+      left: 0; 
+      /* Make the actual div tiny (10% of the screen) to save memory */
+      width: 10vw; 
+      height: 10vh; 
       background-size: cover;
       background-position: center;
-      filter: blur(40px) brightness(0.3); /* YTM aesthetic */
+      
+      /* Use hardware acceleration to stretch the tiny div across the whole TV */
+      transform: scale(12);
+      transform-origin: center center;
+      
+      /* Blurring a tiny image is 100x easier for the Chromecast GPU */
+      filter: blur(2px) brightness(0.3); 
+      
       z-index: 1;
       transition: background-image 1s ease;
+      
+      /* Force the Chromecast to use the GPU instead of the CPU */
+      will-change: transform, background-image;
     }
 
     /* 2. The main layout container */
@@ -47,7 +61,7 @@
       width: 400px;
       height: 400px;
       border-radius: 8px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.8);
       object-fit: cover;
       margin-bottom: 40px;
     }
@@ -70,7 +84,7 @@
       text-align: center;
     }
 
-    /* 3. The Custom Progress Bar */
+    /* 3. The Custom Hardware-Accelerated Progress Bar */
     #progress-container {
       width: 60%;
       height: 4px;
@@ -81,10 +95,15 @@
 
     #progress-fill {
       height: 100%;
-      width: 0%;
+      width: 100%;
       background-color: #ffffff;
       border-radius: 2px;
-      transition: width 0.1s linear;
+      
+      /* Use scaleX instead of width for buttery smooth animation */
+      transform: scaleX(0); 
+      transform-origin: left center;
+      transition: transform 0.1s linear;
+      will-change: transform;
     }
 
     #time-container {
@@ -196,7 +215,7 @@
       }
     );
 
-    // Automatically update the custom progress bar every second
+    // Automatically update the custom progress bar every second using GPU transforms
     playerDataBinder.addEventListener(
       cast.framework.ui.PlayerDataEventType.CURRENT_TIME_CHANGED,
       (e) => {
@@ -207,8 +226,9 @@
         timeTotal.innerText = formatTime(total);
         
         if (total > 0) {
-          const pct = (current / total) * 100;
-          progressFill.style.width = `${pct}%`;
+          // Calculate the ratio (0.0 to 1.0) and apply via scaleX
+          const ratio = current / total;
+          progressFill.style.transform = `scaleX(${ratio})`;
         }
       }
     );
