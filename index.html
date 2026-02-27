@@ -1,103 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Premium Audio Receiver</title>
   <script src="//www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;700&display=swap');
-
-    body {
-      margin: 0;
-      overflow: hidden;
-      font-family: 'Inter', sans-serif;
-      color: white;
-      background-color: #0f172a; /* Sleek dark slate fallback */
-    }
-
-    /* A beautiful, slow-moving animated background for the Idle state */
-    #idle-background {
-      position: absolute;
-      top: 0; left: 0; width: 100vw; height: 100vh;
-      background: linear-gradient(-45deg, #4f46e5, #ec4899, #8b5cf6, #3b82f6);
-      background-size: 400% 400%;
-      animation: gradientBG 15s ease infinite;
-      z-index: 0;
-      transition: opacity 1s ease-in-out;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
-
-    @keyframes gradientBG {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
-
-    /* The idle text layout */
-    .idle-text {
-      font-size: 3rem;
-      font-weight: 300;
-      letter-spacing: 2px;
-      text-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    }
-    
-    .idle-subtext {
-      font-size: 1.2rem;
-      opacity: 0.7;
-      margin-top: 10px;
-    }
-
-    /* Aggressive CSS overrides to clean up the default player */
-    cast-media-player {
-      position: absolute;
-      top: 0; left: 0; width: 100vw; height: 100vh;
-      z-index: 2;
-      
-      /* Make it transparent so our custom backgrounds show */
-      --background-color: transparent; 
-      
-      /* Hide default Google logos and splash screens */
-      --splash-image: none; 
-      --logo-image: none;
-      --watermark-image: none;
-      
-      /* Modernize the fonts and colors */
-      --font-family: 'Inter', sans-serif;
-      --theme-hue: 260; 
-      --progress-color: #ffffff; /* Clean white progress bar */
-      --metadata-text-color: #ffffff;
-    }
-  </style>
 </head>
 <body>
-
-  <div id="idle-background">
-    <div class="idle-text">Ready to Cast</div>
-    <div class="idle-subtext">Waiting for media...</div>
-  </div>
-  
   <cast-media-player></cast-media-player>
-
   <script>
+    // The absolute minimum required to start a custom receiver
     const context = cast.framework.CastReceiverContext.getInstance();
-    const playerManager = context.getPlayerManager();
-    const idleScreen = document.getElementById('idle-background');
-
-    // Hide the idle screen smoothly when media starts playing
-    playerManager.addEventListener(
-      cast.framework.events.EventType.PLAYER_STATE_CHANGED,
-      (event) => {
-        if (event.value === 'PLAYING' || event.value === 'BUFFERING') {
-          idleScreen.style.opacity = '0'; // Fade out
-        } else if (event.value === 'IDLE') {
-          idleScreen.style.opacity = '1'; // Fade back in
-        }
-      }
-    );
-
-    // Start the Cast receiver application
     context.start();
   </script>
 </body>
