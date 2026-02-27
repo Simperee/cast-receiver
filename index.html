@@ -11,10 +11,10 @@
       overflow: hidden;
       font-family: 'Inter', sans-serif;
       color: white;
-      background-color: #0f172a;
+      background-color: #0f172a; /* Sleek dark slate fallback */
     }
 
-    /* 1. A beautiful, slow-moving animated background for the Idle state */
+    /* A beautiful, slow-moving animated background for the Idle state */
     #idle-background {
       position: absolute;
       top: 0; left: 0; width: 100vw; height: 100vh;
@@ -42,20 +42,14 @@
       letter-spacing: 2px;
       text-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
+    
     .idle-subtext {
       font-size: 1.2rem;
       opacity: 0.7;
       margin-top: 10px;
     }
 
-    /* The Visualizer Canvas */
-    #visualizer {
-      position: absolute;
-      bottom: 0; left: 0; width: 100vw; height: 100vh;
-      z-index: 1; /* Behind player, above idle background */
-    }
-
-    /* 2. Aggressive CSS overrides to clean up the default player */
+    /* Aggressive CSS overrides to clean up the default player */
     cast-media-player {
       position: absolute;
       top: 0; left: 0; width: 100vw; height: 100vh;
@@ -81,20 +75,17 @@
 
   <div id="idle-background">
     <div class="idle-text">Ready to Cast</div>
-    <div class="idle-subtext">Waiting for music...</div>
+    <div class="idle-subtext">Waiting for media...</div>
   </div>
-
-  <canvas id="visualizer"></canvas>
   
   <cast-media-player></cast-media-player>
 
   <script>
     const context = cast.framework.CastReceiverContext.getInstance();
     const playerManager = context.getPlayerManager();
-
     const idleScreen = document.getElementById('idle-background');
 
-    // Hide the idle screen when media starts playing
+    // Hide the idle screen smoothly when media starts playing
     playerManager.addEventListener(
       cast.framework.events.EventType.PLAYER_STATE_CHANGED,
       (event) => {
@@ -106,71 +97,7 @@
       }
     );
 
-    // --- VISUALIZER LOGIC (Same as before) ---
-    let audioCtx, analyser, source;
-    const canvas = document.getElementById('visualizer');
-    const canvasCtx = canvas.getContext('2d');
-
-    function resizeCanvas() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
-    playerManager.setMessageInterceptor(
-      cast.framework.messages.MessageType.LOAD,
-      request => {
-        const mediaElement = document.querySelector('video') || document.querySelector('audio');
-        if (mediaElement) mediaElement.crossOrigin = "anonymous";
-        return request;
-      }
-    );
-
-    playerManager.addEventListener(
-        cast.framework.events.EventType.PLAYING,
-        () => {
-          const deviceCapabilities = context.getDeviceCapabilities();
-          if (deviceCapabilities && deviceCapabilities.displaySupported === false) return; 
-
-          const mediaElement = document.querySelector('video') || document.querySelector('audio');
-          
-          if (mediaElement && !audioCtx) {
-              try {
-                  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                  analyser = audioCtx.createAnalyser();
-                  source = audioCtx.createMediaElementSource(mediaElement);
-                  source.connect(analyser);
-                  analyser.connect(audioCtx.destination);
-                  analyser.fftSize = 256;
-                  const bufferLength = analyser.frequencyBinCount;
-                  const dataArray = new Uint8Array(bufferLength);
-                  
-                  function draw() {
-                      requestAnimationFrame(draw);
-                      analyser.getByteFrequencyData(dataArray);
-                      canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-                      
-                      const barWidth = (canvas.width / bufferLength) * 2.5;
-                      let barHeight;
-                      let x = 0;
-                      
-                      for(let i = 0; i < bufferLength; i++) {
-                          barHeight = dataArray[i] * 2;
-                          const r = barHeight + 50; const g = 50; const b = 250;
-                          canvasCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-                          canvasCtx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight / 2);
-                          x += barWidth + 1;
-                      }
-                  }
-                  draw();
-              } catch (err) {
-                  console.error("Web Audio API Error:", err);
-              }
-          }
-        }
-    );
-
+    // Start the Cast receiver application
     context.start();
   </script>
 </body>
