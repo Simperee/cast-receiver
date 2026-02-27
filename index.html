@@ -24,19 +24,24 @@
       position: absolute;
       top: 0; 
       left: 0; 
+      /* Make the actual div tiny (10% of the screen) to save memory */
       width: 10vw; 
       height: 10vh; 
       background-size: cover;
       background-position: center;
       
-      /* The Fix: Scale outward from the top-left corner */
+      /* Scale outward from the top-left corner */
       transform-origin: top left;
       /* Scale by 11 to make it 110vw/110vh, ensuring it completely fills every edge */
       transform: scale(11); 
       
+      /* Blurring a tiny image is 100x easier for the Chromecast GPU */
       filter: blur(2px) brightness(0.3); 
+      
       z-index: 1;
       transition: background-image 1s ease;
+      
+      /* Force the Chromecast to use the GPU instead of the CPU */
       will-change: transform, background-image;
     }
 
@@ -168,68 +173,74 @@
     const timeCurrent = document.getElementById('time-current');
     const timeTotal = document.getElementById('time-total');
 
-    // Helper to format raw seconds into M:SS
-    function formatTime(sec) {
-      if (isNaN(sec) || sec < 0) return "0:00";
-      const m = Math.floor(sec / 60);
-      const s = Math.floor(sec % 60).toString().padStart(2, '0');
-      return `${m}:${s}`;
+    // 1. Check if the device is a headless smart speaker (Nest Mini)
+    const deviceCapabilities = context.getDeviceCapabilities();
+    const isAudioOnly = deviceCapabilities && deviceCapabilities.displaySupported === false;
+
+    if (isAudioOnly) {
+        // NEST MINI MODE: Hide all graphics to prevent RAM/GPU crashes
+        console.log("Audio-only device detected. Disabling UI to save memory.");
+        uiLayer.style.display = 'none';
+        idleScreen.style.display = 'none';
+        bgLayer.style.display = 'none';
+    } else {
+        // TV MODE: Load the beautiful YouTube Music UI
+        function formatTime(sec) {
+          if (isNaN(sec) || sec < 0) return "0:00";
+          const m = Math.floor(sec / 60);
+          const s = Math.floor(sec % 60).toString().padStart(2, '0');
+          return `${m}:${s}`;
+        }
+
+        const playerData = new cast.framework.ui.PlayerData();
+        const playerDataBinder = new cast.framework.ui.PlayerDataBinder(playerData);
+
+        playerDataBinder.addEventListener(
+          cast.framework.ui.PlayerDataEventType.STATE_CHANGED,
+          (e) => {
+            if (e.value === cast.framework.ui.State.PLAYING || 
+                e.value === cast.framework.ui.State.BUFFERING || 
+                e.value === cast.framework.ui.State.PAUSED) {
+              idleScreen.style.opacity = '0';
+              uiLayer.style.opacity = '1';
+            } else {
+              idleScreen.style.opacity = '1';
+              uiLayer.style.opacity = '0';
+            }
+          }
+        );
+
+        playerDataBinder.addEventListener(
+          cast.framework.ui.PlayerDataEventType.ANY_CHANGE,
+          () => {
+            trackTitle.innerText = playerData.title || "Unknown Title";
+            trackArtist.innerText = (playerData.metadata && playerData.metadata.artist) ? playerData.metadata.artist : "";
+
+            if (playerData.thumbnailUrl) {
+                albumArt.src = playerData.thumbnailUrl;
+                bgLayer.style.backgroundImage = `url('${playerData.thumbnailUrl}')`;
+            }
+          }
+        );
+
+        playerDataBinder.addEventListener(
+          cast.framework.ui.PlayerDataEventType.CURRENT_TIME_CHANGED,
+          (e) => {
+            const current = e.value;
+            const total = playerData.duration;
+            
+            timeCurrent.innerText = formatTime(current);
+            timeTotal.innerText = formatTime(total);
+            
+            if (total > 0) {
+              const ratio = current / total;
+              progressFill.style.transform = `scaleX(${ratio})`;
+            }
+          }
+        );
     }
 
-    // Initialize the PlayerDataBinder (Google's official custom UI tool)
-    const playerData = new cast.framework.ui.PlayerData();
-    const playerDataBinder = new cast.framework.ui.PlayerDataBinder(playerData);
-
-    // Fade screens in and out based on player state
-    playerDataBinder.addEventListener(
-      cast.framework.ui.PlayerDataEventType.STATE_CHANGED,
-      (e) => {
-        if (e.value === cast.framework.ui.State.PLAYING || 
-            e.value === cast.framework.ui.State.BUFFERING || 
-            e.value === cast.framework.ui.State.PAUSED) {
-          idleScreen.style.opacity = '0';
-          uiLayer.style.opacity = '1';
-        } else {
-          idleScreen.style.opacity = '1';
-          uiLayer.style.opacity = '0';
-        }
-      }
-    );
-
-    // Update Text and Images when the song changes
-    playerDataBinder.addEventListener(
-      cast.framework.ui.PlayerDataEventType.ANY_CHANGE,
-      () => {
-        trackTitle.innerText = playerData.title || "Unknown Title";
-        trackArtist.innerText = (playerData.metadata && playerData.metadata.artist) ? playerData.metadata.artist : "";
-
-        if (playerData.thumbnailUrl) {
-            albumArt.src = playerData.thumbnailUrl;
-            // Apply the same image to the blurred background layer
-            bgLayer.style.backgroundImage = `url('${playerData.thumbnailUrl}')`;
-        }
-      }
-    );
-
-    // Automatically update the custom progress bar every second using GPU transforms
-    playerDataBinder.addEventListener(
-      cast.framework.ui.PlayerDataEventType.CURRENT_TIME_CHANGED,
-      (e) => {
-        const current = e.value;
-        const total = playerData.duration;
-        
-        timeCurrent.innerText = formatTime(current);
-        timeTotal.innerText = formatTime(total);
-        
-        if (total > 0) {
-          // Calculate the ratio (0.0 to 1.0) and apply via scaleX
-          const ratio = current / total;
-          progressFill.style.transform = `scaleX(${ratio})`;
-        }
-      }
-    );
-
-    // Start the Cast receiver
+    // Start the Cast receiver application
     context.start();
   </script>
 </body>
