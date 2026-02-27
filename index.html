@@ -24,23 +24,19 @@
       position: absolute;
       top: 0; 
       left: 0; 
-      /* Make the actual div tiny (10% of the screen) to save memory */
       width: 10vw; 
       height: 10vh; 
       background-size: cover;
       background-position: center;
       
-      /* Use hardware acceleration to stretch the tiny div across the whole TV */
-      transform: scale(12);
-      transform-origin: center center;
+      /* The Fix: Scale outward from the top-left corner */
+      transform-origin: top left;
+      /* Scale by 11 to make it 110vw/110vh, ensuring it completely fills every edge */
+      transform: scale(11); 
       
-      /* Blurring a tiny image is 100x easier for the Chromecast GPU */
       filter: blur(2px) brightness(0.3); 
-      
       z-index: 1;
       transition: background-image 1s ease;
-      
-      /* Force the Chromecast to use the GPU instead of the CPU */
       will-change: transform, background-image;
     }
 
