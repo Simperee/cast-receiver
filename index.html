@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Modern Audio Receiver</title>
+  <script src="//www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+    body {
+      background-color: #0f172a; /* Sleek dark slate */
+      color: white;
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    #visualizer {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0; /* Behind the player */
+    }
+
+    cast-media-player {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      
+      /* Modern CSS overrides */
+      --theme-hue: 260; /* Deep purple/blue hue */
+      --progress-color: #8b5cf6; /* Vibrant neon purple */
+      --splash-image: none; /* Remove default splash */
+      --background-color: transparent; /* Allow canvas to show through */
+      --metadata-text-color: #ffffff;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="visualizer"></canvas>
+  <cast-media-player></cast-media-player>
+  <script>
+    const context = cast.framework.CastReceiverContext.getInstance();
+    const playerManager = context.getPlayerManager();
+
+    // Visualizer variables
+    let audioCtx, analyser, source;
+    const canvas = document.getElementById('visualizer');
+    const canvasCtx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Wait until media loads to attach the visualizer
+    playerManager.addEventListener(
+        cast.framework.events.EventType.PLAYER_LOAD_COMPLETE,
+        () => {
+        // 1. Check if the device has a display. If not (Google Home), skip the visualizer.
+        const deviceCapabilities = context.getDeviceCapabilities();
+        if (deviceCapabilities && deviceCapabilities.displaySupported === false) {
+            console.log('Audio-only device detected. Skipping visuals.');
+            return; 
+        }
+
+        // 2. Grab the hidden media element the Cast SDK is using
+        const mediaElement = document.querySelector('video') || document.querySelector('audio');
+        
+        if (mediaElement && !audioCtx) {
+            // IMPORTANT: CORS must be configured on your media server, or this will fail
+            mediaElement.crossOrigin = "anonymous"; 
+            
+            // 3. Set up the Web Audio API
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioCtx.createAnalyser();
+            
+            source = audioCtx.createMediaElementSource(mediaElement);
+            source.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            
+            analyser.fftSize = 256;
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            // 4. Draw the visualizer
+            function draw() {
+            requestAnimationFrame(draw);
+            analyser.getByteFrequencyData(dataArray);
+            
+            canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const barWidth = (canvas.width / bufferLength) * 2.5;
+            let barHeight;
+            let x = 0;
+            
+            for(let i = 0; i < bufferLength; i++) {
+                barHeight = dataArray[i] * 2;
+                
+                // Sleek cyberpunk gradient effect
+                const r = barHeight + 50;
+                const g = 50;
+                const b = 250;
+                
+                canvasCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                canvasCtx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight / 2);
+                
+                x += barWidth + 1;
+            }
+            }
+            draw();
+        }
+        }
+    );
+
+    // Start the Cast receiver
+    context.start();
+    </script>
+
+  </body>
+</html>
