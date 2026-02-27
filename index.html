@@ -1,67 +1,116 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Modern Audio Receiver</title>
+  <title>Premium Audio Receiver</title>
   <script src="//www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;700&display=swap');
 
     body {
-      background-color: #0f172a; /* Sleek dark slate */
-      color: white;
-      font-family: 'Inter', sans-serif;
       margin: 0;
       overflow: hidden;
+      font-family: 'Inter', sans-serif;
+      color: white;
+      background-color: #0f172a;
     }
 
+    /* 1. A beautiful, slow-moving animated background for the Idle state */
+    #idle-background {
+      position: absolute;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: linear-gradient(-45deg, #4f46e5, #ec4899, #8b5cf6, #3b82f6);
+      background-size: 400% 400%;
+      animation: gradientBG 15s ease infinite;
+      z-index: 0;
+      transition: opacity 1s ease-in-out;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* The idle text layout */
+    .idle-text {
+      font-size: 3rem;
+      font-weight: 300;
+      letter-spacing: 2px;
+      text-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+    .idle-subtext {
+      font-size: 1.2rem;
+      opacity: 0.7;
+      margin-top: 10px;
+    }
+
+    /* The Visualizer Canvas */
     #visualizer {
       position: absolute;
-      bottom: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 0; /* Behind the player */
+      bottom: 0; left: 0; width: 100vw; height: 100vh;
+      z-index: 1; /* Behind player, above idle background */
     }
 
+    /* 2. Aggressive CSS overrides to clean up the default player */
     cast-media-player {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 1;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      z-index: 2;
       
-      /* Modern CSS overrides */
-      --theme-hue: 260; /* Deep purple/blue hue */
-      --progress-color: #8b5cf6; /* Vibrant neon purple */
-      --splash-image: none; /* Remove default splash */
-      --background-color: transparent; /* Allow canvas to show through */
+      /* Make it transparent so our custom backgrounds show */
+      --background-color: transparent; 
+      
+      /* Hide default Google logos and splash screens */
+      --splash-image: none; 
+      --logo-image: none;
+      --watermark-image: none;
+      
+      /* Modernize the fonts and colors */
+      --font-family: 'Inter', sans-serif;
+      --theme-hue: 260; 
+      --progress-color: #ffffff; /* Clean white progress bar */
       --metadata-text-color: #ffffff;
     }
   </style>
 </head>
 <body>
+
+  <div id="idle-background">
+    <div class="idle-text">Ready to Cast</div>
+    <div class="idle-subtext">Waiting for music...</div>
+  </div>
+
   <canvas id="visualizer"></canvas>
+  
   <cast-media-player></cast-media-player>
 
   <script>
     const context = cast.framework.CastReceiverContext.getInstance();
     const playerManager = context.getPlayerManager();
 
-    // Debugging: Log all errors so we can see them in Chrome Inspect
+    const idleScreen = document.getElementById('idle-background');
+
+    // Hide the idle screen when media starts playing
     playerManager.addEventListener(
-      cast.framework.events.EventType.ERROR,
+      cast.framework.events.EventType.PLAYER_STATE_CHANGED,
       (event) => {
-        console.error('FATAL CAST ERROR:', event.detailedErrorCode, event.error);
+        if (event.value === 'PLAYING' || event.value === 'BUFFERING') {
+          idleScreen.style.opacity = '0'; // Fade out
+        } else if (event.value === 'IDLE') {
+          idleScreen.style.opacity = '1'; // Fade back in
+        }
       }
     );
 
-    // Visualizer variables
+    // --- VISUALIZER LOGIC (Same as before) ---
     let audioCtx, analyser, source;
     const canvas = document.getElementById('visualizer');
     const canvasCtx = canvas.getContext('2d');
 
-    // Make sure the canvas always fills the TV screen
     function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -69,52 +118,37 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // Use the LOAD interceptor to set crossOrigin BEFORE the media starts fetching
     playerManager.setMessageInterceptor(
       cast.framework.messages.MessageType.LOAD,
       request => {
-        // Find the media element early and prep it to prevent CORS crashes
         const mediaElement = document.querySelector('video') || document.querySelector('audio');
-        if (mediaElement) {
-           mediaElement.crossOrigin = "anonymous";
-        }
+        if (mediaElement) mediaElement.crossOrigin = "anonymous";
         return request;
       }
     );
 
-    // Attach visualizer only when playback actually begins
     playerManager.addEventListener(
         cast.framework.events.EventType.PLAYING,
         () => {
-          // 1. Check if the device has a display. If not (Google Home), skip the visualizer.
           const deviceCapabilities = context.getDeviceCapabilities();
-          if (deviceCapabilities && deviceCapabilities.displaySupported === false) {
-              console.log('Audio-only device detected. Skipping visuals.');
-              return; 
-          }
+          if (deviceCapabilities && deviceCapabilities.displaySupported === false) return; 
 
-          // 2. Grab the hidden media element the Cast SDK is using
           const mediaElement = document.querySelector('video') || document.querySelector('audio');
           
           if (mediaElement && !audioCtx) {
               try {
-                  // 3. Initialize Web Audio API
                   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                   analyser = audioCtx.createAnalyser();
-                  
                   source = audioCtx.createMediaElementSource(mediaElement);
                   source.connect(analyser);
                   analyser.connect(audioCtx.destination);
-                  
                   analyser.fftSize = 256;
                   const bufferLength = analyser.frequencyBinCount;
                   const dataArray = new Uint8Array(bufferLength);
                   
-                  // 4. Draw the visualizer frame by frame
                   function draw() {
                       requestAnimationFrame(draw);
                       analyser.getByteFrequencyData(dataArray);
-                      
                       canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
                       
                       const barWidth = (canvas.width / bufferLength) * 2.5;
@@ -123,12 +157,7 @@
                       
                       for(let i = 0; i < bufferLength; i++) {
                           barHeight = dataArray[i] * 2;
-                          
-                          // Sleek cyberpunk gradient effect
-                          const r = barHeight + 50;
-                          const g = 50;
-                          const b = 250;
-                          
+                          const r = barHeight + 50; const g = 50; const b = 250;
                           canvasCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
                           canvasCtx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight / 2);
                           x += barWidth + 1;
@@ -136,14 +165,12 @@
                   }
                   draw();
               } catch (err) {
-                  // If CORS blocks the audio interception, log it instead of crashing the whole app
-                  console.error("Web Audio API Error (Likely CORS):", err);
+                  console.error("Web Audio API Error:", err);
               }
           }
         }
     );
 
-    // Start the Cast receiver application
     context.start();
   </script>
 </body>
