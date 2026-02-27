@@ -43,15 +43,25 @@
 <body>
   <canvas id="visualizer"></canvas>
   <cast-media-player></cast-media-player>
+
   <script>
     const context = cast.framework.CastReceiverContext.getInstance();
     const playerManager = context.getPlayerManager();
+
+    // Debugging: Log all errors so we can see them in Chrome Inspect
+    playerManager.addEventListener(
+      cast.framework.events.EventType.ERROR,
+      (event) => {
+        console.error('FATAL CAST ERROR:', event.detailedErrorCode, event.error);
+      }
+    );
 
     // Visualizer variables
     let audioCtx, analyser, source;
     const canvas = document.getElementById('visualizer');
     const canvasCtx = canvas.getContext('2d');
 
+    // Make sure the canvas always fills the TV screen
     function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -59,69 +69,82 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // Wait until media loads to attach the visualizer
-    playerManager.addEventListener(
-        cast.framework.events.EventType.PLAYER_LOAD_COMPLETE,
-        () => {
-        // 1. Check if the device has a display. If not (Google Home), skip the visualizer.
-        const deviceCapabilities = context.getDeviceCapabilities();
-        if (deviceCapabilities && deviceCapabilities.displaySupported === false) {
-            console.log('Audio-only device detected. Skipping visuals.');
-            return; 
-        }
-
-        // 2. Grab the hidden media element the Cast SDK is using
+    // Use the LOAD interceptor to set crossOrigin BEFORE the media starts fetching
+    playerManager.setMessageInterceptor(
+      cast.framework.messages.MessageType.LOAD,
+      request => {
+        // Find the media element early and prep it to prevent CORS crashes
         const mediaElement = document.querySelector('video') || document.querySelector('audio');
-        
-        if (mediaElement && !audioCtx) {
-            // IMPORTANT: CORS must be configured on your media server, or this will fail
-            mediaElement.crossOrigin = "anonymous"; 
-            
-            // 3. Set up the Web Audio API
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            analyser = audioCtx.createAnalyser();
-            
-            source = audioCtx.createMediaElementSource(mediaElement);
-            source.connect(analyser);
-            analyser.connect(audioCtx.destination);
-            
-            analyser.fftSize = 256;
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-            
-            // 4. Draw the visualizer
-            function draw() {
-            requestAnimationFrame(draw);
-            analyser.getByteFrequencyData(dataArray);
-            
-            canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            const barWidth = (canvas.width / bufferLength) * 2.5;
-            let barHeight;
-            let x = 0;
-            
-            for(let i = 0; i < bufferLength; i++) {
-                barHeight = dataArray[i] * 2;
-                
-                // Sleek cyberpunk gradient effect
-                const r = barHeight + 50;
-                const g = 50;
-                const b = 250;
-                
-                canvasCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-                canvasCtx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight / 2);
-                
-                x += barWidth + 1;
-            }
-            }
-            draw();
+        if (mediaElement) {
+           mediaElement.crossOrigin = "anonymous";
         }
+        return request;
+      }
+    );
+
+    // Attach visualizer only when playback actually begins
+    playerManager.addEventListener(
+        cast.framework.events.EventType.PLAYING,
+        () => {
+          // 1. Check if the device has a display. If not (Google Home), skip the visualizer.
+          const deviceCapabilities = context.getDeviceCapabilities();
+          if (deviceCapabilities && deviceCapabilities.displaySupported === false) {
+              console.log('Audio-only device detected. Skipping visuals.');
+              return; 
+          }
+
+          // 2. Grab the hidden media element the Cast SDK is using
+          const mediaElement = document.querySelector('video') || document.querySelector('audio');
+          
+          if (mediaElement && !audioCtx) {
+              try {
+                  // 3. Initialize Web Audio API
+                  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                  analyser = audioCtx.createAnalyser();
+                  
+                  source = audioCtx.createMediaElementSource(mediaElement);
+                  source.connect(analyser);
+                  analyser.connect(audioCtx.destination);
+                  
+                  analyser.fftSize = 256;
+                  const bufferLength = analyser.frequencyBinCount;
+                  const dataArray = new Uint8Array(bufferLength);
+                  
+                  // 4. Draw the visualizer frame by frame
+                  function draw() {
+                      requestAnimationFrame(draw);
+                      analyser.getByteFrequencyData(dataArray);
+                      
+                      canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+                      
+                      const barWidth = (canvas.width / bufferLength) * 2.5;
+                      let barHeight;
+                      let x = 0;
+                      
+                      for(let i = 0; i < bufferLength; i++) {
+                          barHeight = dataArray[i] * 2;
+                          
+                          // Sleek cyberpunk gradient effect
+                          const r = barHeight + 50;
+                          const g = 50;
+                          const b = 250;
+                          
+                          canvasCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                          canvasCtx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight / 2);
+                          x += barWidth + 1;
+                      }
+                  }
+                  draw();
+              } catch (err) {
+                  // If CORS blocks the audio interception, log it instead of crashing the whole app
+                  console.error("Web Audio API Error (Likely CORS):", err);
+              }
+          }
         }
     );
 
-    // Start the Cast receiver
+    // Start the Cast receiver application
     context.start();
-    </script>
-
-  </body>
+  </script>
+</body>
 </html>
