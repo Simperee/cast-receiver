@@ -3,49 +3,126 @@
 <head>
   <title>YouTube Music Style Receiver</title>
   <script src="//www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
 
+  <style>
+    /* ... (Keep your existing .loader-container and wave animation CSS exactly as is) ... */
+    .loader-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 60px;
+      border-radius: 12px;
+      contain: paint layout; 
+    }
+
+    .wave-loader {
+      width: 100%;
+      min-width: 300px;
+      max-width: 400px;
+      display: block;
+      transform: translateZ(0); 
+    }
+
+    .wave-loader path {
+      fill: none;
+      stroke-width: 26;
+      stroke-linecap: round; 
+      stroke-linejoin: round;
+    }
+
+    .wave-bg { stroke: #2c2f33; }
+
+    .wave-line {
+      stroke: #d22247; 
+      stroke-dasharray: 25 150;
+      animation: wave-flow 1.5s linear infinite;
+      will-change: stroke-dashoffset;
+    }
+
+    @keyframes wave-flow {
+      0% { stroke-dashoffset: 25; }
+      100% { stroke-dashoffset: -100; }
+    }
+  </style>
+  <style>
+    /* 1. DEFINE YOUR CUSTOM FONT FACES */
+    @font-face {
+      font-family: 'Generator';
+      src: url('fonts/Generator-Thin.otf') format('opentype');
+      font-weight: 100;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'Generator';
+      src: url('fonts/Generator-UltraLight.otf') format('opentype');
+      font-weight: 200;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'Generator';
+      src: url('fonts/Generator-Light.otf') format('opentype');
+      font-weight: 300;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'Generator';
+      src: url('fonts/Generator-Regular.otf') format('opentype');
+      font-weight: 400; /* Standard text */
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'Generator';
+      src: url('fonts/Generator-Medium.otf') format('opentype');
+      font-weight: 500;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'Generator';
+      src: url('fonts/Generator-SemiBold.otf') format('opentype');
+      font-weight: 600;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'Generator';
+      src: url('fonts/Generator-Bold.otf') format('opentype');
+      font-weight: 700; /* Bold titles */
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'Generator';
+      src: url('fonts/Generator-UltraBold.otf') format('opentype');
+      font-weight: 800;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'Generator';
+      src: url('fonts/Generator-Black.otf') format('opentype');
+      font-weight: 900;
+      font-style: normal;
+    }
+
+    /* 2. APPLY THE NEW FONT TO THE APP */
     body {
       margin: 0;
       overflow: hidden;
-      font-family: 'Roboto', sans-serif;
+      font-family: 'Generator', sans-serif; /* Replaced Roboto here */
       background-color: #000;
       color: white;
     }
 
-    /* We hide the default player UI, but keep it in the DOM so the SDK can play audio behind the scenes */
-    cast-media-player {
-      display: none;
-    }
+    /* ... (The rest of your CSS remains exactly the same) ... */
+    cast-media-player { display: none; }
 
-    /* 1. The highly optimized blurred background layer */
     #bg-layer {
       position: absolute;
-      top: 0; 
-      left: 0; 
-      /* Make the actual div tiny (10% of the screen) to save memory */
-      width: 10vw; 
-      height: 10vh; 
-      background-size: cover;
-      background-position: center;
-      
-      /* Scale outward from the top-left corner */
-      transform-origin: top left;
-      /* Scale by 11 to make it 110vw/110vh, ensuring it completely fills every edge */
-      transform: scale(11); 
-      
-      /* Blurring a tiny image is 100x easier for the Chromecast GPU */
-      filter: blur(2px) brightness(0.3); 
-      
+      top: 0; left: 0; width: 100vw; height: 100vh;
       z-index: 1;
-      transition: background-image 1s ease;
-      
-      /* Force the Chromecast to use the GPU instead of the CPU */
-      will-change: transform, background-image;
+      /* A nice deep dark base color */
+      background-color: #050505; 
+      /* We will inject the gradients via JS, so we transition the background */
+      transition: background 1.5s ease;
     }
 
-    /* 2. The main layout container */
     #ui-layer {
       position: absolute;
       top: 0; left: 0; width: 100vw; height: 100vh;
@@ -54,13 +131,12 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      opacity: 0; /* Hidden when idle */
+      opacity: 100;
       transition: opacity 0.5s ease;
     }
 
     #album-art {
-      width: 400px;
-      height: 400px;
+      width: 400px; height: 400px;
       border-radius: 8px;
       box-shadow: 0 10px 40px rgba(0,0,0,0.8);
       object-fit: cover;
@@ -69,7 +145,7 @@
 
     #track-title {
       font-size: 2.5rem;
-      font-weight: 700;
+      font-weight: 700; /* Uses Generator-Bold */
       margin: 0 0 10px 0;
       text-align: center;
       max-width: 80%;
@@ -80,27 +156,23 @@
 
     #track-artist {
       font-size: 1.5rem;
+      font-weight: 400; /* Uses Generator-Regular */
       color: #aaaaaa;
       margin: 0 0 50px 0;
       text-align: center;
     }
 
-    /* 3. The Custom Hardware-Accelerated Progress Bar */
     #progress-container {
-      width: 60%;
-      height: 4px;
+      width: 60%; height: 4px;
       background-color: rgba(255, 255, 255, 0.2);
       border-radius: 2px;
       position: relative;
     }
 
     #progress-fill {
-      height: 100%;
-      width: 100%;
+      height: 100%; width: 100%;
       background-color: #ffffff;
       border-radius: 2px;
-      
-      /* Use scaleX instead of width for buttery smooth animation */
       transform: scaleX(0); 
       transform-origin: left center;
       transition: transform 0.1s linear;
@@ -116,7 +188,6 @@
       color: #aaaaaa;
     }
 
-    /* 4. A clean Idle Screen */
     #idle-screen {
       position: absolute;
       top: 0; left: 0; width: 100vw; height: 100vh;
@@ -136,17 +207,21 @@
   </style>
 </head>
 <body>
-
   <cast-media-player></cast-media-player>
 
   <div id="idle-screen">
-    <h1>Ready to Cast</h1>
+    <div class="loader-container">
+      <svg class="wave-loader" viewBox="-20 -20 440 140" xmlns="http://www.w3.org/2000/svg">
+        <path class="wave-bg" pathLength="100" d="M 0 50 Q 25 10, 50 50 T 100 50 T 150 50 T 200 50 T 250 50 T 300 50 T 350 50 T 400 50" />
+        <path class="wave-line" pathLength="100" d="M 0 50 Q 25 10, 50 50 T 100 50 T 150 50 T 200 50 T 250 50 T 300 50 T 350 50 T 400 50" />
+      </svg>
+    </div>
   </div>
 
   <div id="bg-layer"></div>
 
   <div id="ui-layer">
-    <img id="album-art" src="" />
+    <img id="album-art" crossorigin="anonymous" src="" />
     <h1 id="track-title"></h1>
     <h2 id="track-artist"></h2>
     
@@ -162,7 +237,6 @@
   <script>
     const context = cast.framework.CastReceiverContext.getInstance();
     
-    // UI Elements
     const uiLayer = document.getElementById('ui-layer');
     const idleScreen = document.getElementById('idle-screen');
     const bgLayer = document.getElementById('bg-layer');
@@ -173,18 +247,15 @@
     const timeCurrent = document.getElementById('time-current');
     const timeTotal = document.getElementById('time-total');
 
-    // 1. Check if the device is a headless smart speaker (Nest Mini)
     const deviceCapabilities = context.getDeviceCapabilities();
     const isAudioOnly = deviceCapabilities && deviceCapabilities.displaySupported === false;
 
     if (isAudioOnly) {
-        // NEST MINI MODE: Hide all graphics to prevent RAM/GPU crashes
         console.log("Audio-only device detected. Disabling UI to save memory.");
         uiLayer.style.display = 'none';
         idleScreen.style.display = 'none';
         bgLayer.style.display = 'none';
     } else {
-        // TV MODE: Load the beautiful YouTube Music UI
         function formatTime(sec) {
           if (isNaN(sec) || sec < 0) return "0:00";
           const m = Math.floor(sec / 60);
@@ -217,11 +288,45 @@
             trackArtist.innerText = (playerData.metadata && playerData.metadata.artist) ? playerData.metadata.artist : "";
 
             if (playerData.thumbnailUrl) {
+                // 1. Set the image source
                 albumArt.src = playerData.thumbnailUrl;
-                bgLayer.style.backgroundImage = `url('${playerData.thumbnailUrl}')`;
             }
           }
         );
+
+        // 2. Wait for the image to physically load on screen, then steal its colors
+        albumArt.onload = function() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 3;
+            canvas.height = 3;
+            const ctx = canvas.getContext('2d');
+            
+            try {
+                // Draw the cover art squished into 9 pixels
+                ctx.drawImage(albumArt, 0, 0, 3, 3);
+                
+                // Grab pixels from the Top-Left, Bottom-Right, and Center
+                const p1 = ctx.getImageData(0, 0, 1, 1).data; 
+                const p2 = ctx.getImageData(2, 2, 1, 1).data; 
+                const p3 = ctx.getImageData(1, 1, 1, 1).data; 
+
+                // Format them into dark, transparent colors
+                const c1 = `rgba(${p1[0]}, ${p1[1]}, ${p1[2]}, 0.6)`;
+                const c2 = `rgba(${p2[0]}, ${p2[1]}, ${p2[2]}, 0.5)`;
+                const c3 = `rgba(${p3[0]}, ${p3[1]}, ${p3[2]}, 0.4)`;
+
+                // Paint the blobs using radial gradients
+                bgLayer.style.background = `
+                  radial-gradient(circle at 15% 15%, ${c1} 0%, transparent 60%),
+                  radial-gradient(circle at 85% 85%, ${c2} 0%, transparent 60%),
+                  radial-gradient(circle at 50% 50%, ${c3} 0%, transparent 75%)
+                `;
+                bgLayer.style.backgroundColor = '#050505'; 
+            } catch (e) {
+                console.log("Cross-Origin security blocked color extraction.");
+                bgLayer.style.background = '#050505';
+            }
+        };
 
         playerDataBinder.addEventListener(
           cast.framework.ui.PlayerDataEventType.CURRENT_TIME_CHANGED,
@@ -240,7 +345,6 @@
         );
     }
 
-    // Start the Cast receiver application
     context.start();
   </script>
 </body>
